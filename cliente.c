@@ -31,14 +31,21 @@ int main(int *argc, char *argv[])
 	struct sockaddr *server_in = NULL; //Crea la estructura del socket y la añade al servidor
 	struct sockaddr_in server_in4;
 	int address_size = sizeof(server_in4);
-	char buffer_in[1024], buffer_out[1024], input[1024], to[20], from[20], subject[20];// Es el tamaño maximo de 1024 del buffer de los datos recibidos, enviados y los que entran.
+	char buffer_in[1024], buffer_out[1024], input[1024], to[20], from[20], subject[20], salida_tiempo[128];// Es el tamaño maximo de 1024 del buffer de los datos recibidos, enviados y los que entran.
 	int recibidos = 0, enviados = 0;
 	int estado = S_HELO;//Primer valor en la variable estado ya que será una maquina de estados
 	char option;
+	struct  hostent *host;
+	struct in_addr address;
 	int ipversion = AF_INET;//IPv4 por defecto
 	char ipdest[16];
 	char default_ip4[16] = "127.0.0.1";
+	char ipdestl = ""; //ipdestino utilizada para dominio
 	
+	time_t tiempo = time(0);
+	struct tm *tlocal = localtime(&tiempo);
+	strftime(salida_tiempo, 128, "%d/%m/%y %H:%M", tlocal);
+
 	
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -71,7 +78,20 @@ int main(int *argc, char *argv[])
 		else {//Si crea bien el socket pide la ip de destino por pantalla(donde queremos acceder).
 			printf("CLIENTE> Introduzca la IP destino (pulsar enter para IP por defecto): ");
 			gets_s(ipdest, sizeof(ipdest));//obtiene la ip de destino en la variable ipdest y almacena en la variable
+			ipdestl = inet_addr(ipdest);
+			if (ipdestl == INADDR_NONE) {
+				//La dirección introducida por teclado no es correcta o
+				//corresponde con un dominio.
+				struct hostent *host;
+				host = gethostbyname(ipdest); //Pruebo si es dominio
+				if (host != NULL) { //Si es distinto de null, es dominio
+					memcpy(&address, host->h_addr_list[0], 4);  //Tomo los 4 primeros bytes.
+					printf("Direccion %s\n", inet_ntoa(address));
 
+				}
+				//Copia en ipdest
+				strcpy_s(ipdest, sizeof(ipdest), inet_ntoa(address));
+			}
 			//Dirección por defecto según la familia
 			if (strcmp(ipdest, "") == 0) // Compara con una cadena de caracteres vacia y al ser enter una cadena de caracteres vacia se cumple y copia la de default en la ipdest
 				strcpy_s(ipdest, sizeof(ipdest), default_ip4);
@@ -79,7 +99,7 @@ int main(int *argc, char *argv[])
 
 			server_in4.sin_family = AF_INET;
 			server_in4.sin_port = htons(TCP_SERVICE_PORT);
-			//server_in4.sin_addr.s_addr = inet_addr(ipdest);//Para meter una ip de manera numerica
+			server_in4.sin_addr.s_addr = inet_addr(ipdest);//Para meter una ip de manera numerica
 			inet_pton(ipversion, ipdest, &server_in4.sin_addr.s_addr);
 			server_in = (struct sockaddr*)&server_in4;
 			address_size = sizeof(server_in4);
@@ -98,15 +118,15 @@ int main(int *argc, char *argv[])
 				do {
 					switch (estado) {
 					case S_HELO:
-						printf("CLIENTE> Para comenzar, ingrese el comando HELO: ");
-						gets_s(input, sizeof(input));
 						
-							sprintf_s(buffer_out, sizeof(buffer_out), "HELO %s%s", ipdest, CRLF);//Mensaje inicial HELO
-						
-
+						sprintf_s(buffer_out, sizeof(buffer_out), "HELO %s%s", ipdest, CRLF);//Mensaje inicial HELO
+							
 						break;
+
 					case S_MAIL_FROM:
 
+						
+							
 							printf("CLIENTE> MAIL FROM: (Pulse intro para salir) ");
 							gets_s(input, sizeof(input));
 							if (strlen(input) == 0) {
@@ -114,43 +134,60 @@ int main(int *argc, char *argv[])
 								//Escribe en el servidor QUIT y pasamos al estado QUIT
 								sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
 								estado = S_QUIT;
+								
 							}
 							else {
-									sprintf_s(buffer_out, sizeof(buffer_out), "MAIL FROM:<%s>%s", input, CRLF);//MENSAJE DE REMITENTE
-									strcpy_s(from,sizeof(from), input);//guardamos para el mensaje completo
-								}
 
+							
+
+									
+									sprintf_s(buffer_out, sizeof(buffer_out), "MAIL FROM:<%s>%s", input, CRLF);//MENSAJE DE REMITENTE
+									strcpy(from, input);//guardamos para el mensaje completo
+								
+
+
+							}
+						
 
 						break;
 					case S_RCPT_TO:
+						
 							
-							printf("CLIENTE> RCPT TO: (Pulse intro para salir) ");
+							printf("CLIENTE> Usuario Receptor: (Pulse intro para salir) ");
 							gets_s(input, sizeof(input));
-
 							if (strlen(input) == 0) {
 								// Si la longitud de input es 0, 
 								//Escribe en el servidor QUIT y pasamos al estado QUIT
 								sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
 								estado = S_QUIT;
+								
 							}
 							else {
 
-								sprintf_s(buffer_out, sizeof(buffer_out), "RCPT TO:<%s>%s", input, CRLF);//enviamos el destinatario
-								strcpy_s(to,sizeof(to), input);
+								
+
+									
+									sprintf_s(buffer_out, sizeof(buffer_out), "RCPT TO:<%s>%s", input, CRLF);//enviamos el destinatario
+									strcpy(to, input);
+							
+
 							}
 						
-							break;
-
+						printf("¿Desea hacer un reset?\r\n");
+						if (_getch() == 's') {
+							sprintf_s(buffer_out, sizeof(buffer_out), "RSET%s", CRLF);
+							estado = S_HELO;
+						}
+						break;
 					case S_DATA:
 						sprintf_s(buffer_out, sizeof(buffer_out), "DATA%s", CRLF);//comando para pasar al mensaje
 						estado++;
 						break;
-					
 					case S_MENSAJE:
-						printf("CLIENTE> subject: ");
+						printf("CLIENTE> Asunto: ");
 						gets(input);
-						strcpy_s(subject,sizeof(subject), input);
-						sprintf_s(buffer_out, sizeof(buffer_out), "Asunto: %s%sDe:%s%A: %s%s", subject, CRLF, to, CRLF, from, CRLF);//enviamos las cabeceras
+						strcpy(subject, input);
+						sprintf_s(buffer_out, sizeof(buffer_out), "Fecha: %s%ssubject: %s%sto:%s%sfrom: %s%s", salida_tiempo, CRLF, subject, CRLF, to, CRLF, from, CRLF);//enviamos las cabeceras
 
 						do {//vamos montando un mensaje en el buffer out hasta que sea distinto de un .
 							printf("Redacte su mensaje: (Si desea terminar teclee '.'):", to, CRLF);
@@ -167,7 +204,8 @@ int main(int *argc, char *argv[])
 
 
 					case S_QUIT:
-						/*estado para Cerrar conexión*/
+						/*estado para Cerrar conexión, que respondera con un comando que comienza por 2, si no es así, se volverá
+						a ejecutar este comando hasta que el mensaje nos indique que todo está correcto.*/
 						break;
 
 
@@ -177,10 +215,16 @@ int main(int *argc, char *argv[])
 					//**************************************************************************************************************************
 
 					//Envio
-					
+					//	if(estado!=S_HELO){
+					// Ejercicio: Comprobar el estado de envio
+					// La primitiva SEND se utiliza para el envio de datos y en este caso esta compuesta por:
+					//sockfd: Socket para recibir y enviar
+					// buffer_out: puntero que apunta al mensaje que se quiere enviar.
+					//(int)strlen(buffer_out): Tamaño en bytes del mensaje que se va a enviar.
+					//0: es como va la llamada.
 
 					enviados = send(sockfd, buffer_out, (int)strlen(buffer_out), 0);
-			
+					//-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 					/* vamos ha realizar una comprobacion de los datos enviados muy parecida a lo que se hace en recibidos*/
 					if (enviados <= 0) {// si los datos enviados tienen un valor de menor o igual que 0
 						DWORD error = GetLastError();
@@ -196,7 +240,7 @@ int main(int *argc, char *argv[])
 						}
 					}
 					else { // el valor es mayor que 0 y por tanto los datos se envian correctamente
-						//printf("SERVIDOR> Datos enviados correctamente\r\n");
+						printf("SERVIDOR> Datos enviados correctamente\r\n");
 					}
 					//}
 
@@ -207,6 +251,11 @@ int main(int *argc, char *argv[])
 
 					//Recibo
 
+					//La primitiva RECV se utiliza para recibir datos:
+					//sockfd : Socket que se usa para enviar o recibir.
+					//buffer_in: puntero que apunta al mensaje que se quiere recibir.
+					//512: Tamaño en bytes del mensaje que recibimos
+					//0: es como va la llamada.
 
 					recibidos = recv(sockfd, buffer_in, 512, 0);
 
@@ -248,7 +297,7 @@ int main(int *argc, char *argv[])
 						case S_RCPT_TO:
 							if (estado != S_QUIT) {
 								estado++;
-								}
+							}
 							else estado = S_QUIT;
 							break;
 
