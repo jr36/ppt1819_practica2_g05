@@ -173,8 +173,10 @@ int main(int *argc, char *argv[])
 
 							}
 						
-						printf("¿Desea hacer un reset?\r\n");
-						if (_getch() == 's') {
+						printf(" ¿Desea hacer un RSET?\r\n");
+						fflush(stdin);
+						gets(input);
+						if (strcmp(input,"s") == 0) {
 							sprintf_s(buffer_out, sizeof(buffer_out), "RSET%s", CRLF);
 							estado = S_HELO;
 						}
@@ -303,16 +305,24 @@ int main(int *argc, char *argv[])
 
 							/*Las siguientes lineas de codigo lo utilizamos para enviar mas mensajes antes de finalizar la sesion*/
 						case S_MENSAJE:
+							
+
 							if (buffer_in[0] == '2') {
 								printf("¿Quiere mandar otro mensaje antes de finalizar sesion?(si/no)\r\n");
-								if (_getch() == 's') {
+								fflush(stdin);
+								gets(input);
+								if (strcmp(input, "s") == 0) {
 									estado = S_MAIL_FROM;
 								}
-								else { estado = S_QUIT; }
+								else {
+									sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
+									estado = estado++; }
 								break;
 
 
 							}
+					
+							
 						}
 
 					}
