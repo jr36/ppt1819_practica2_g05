@@ -171,7 +171,7 @@ int main(int *argc, char *argv[])
 							}
 							else {
 
-								printf("Esta seguro de que desea añadir este emisor(s/n)?\r\n");
+								printf("Esta seguro de que desea añadir este receptor(s/n)?\r\n");
 
 								fflush(stdin);
 								gets(aux);
@@ -179,12 +179,13 @@ int main(int *argc, char *argv[])
 							if (strcmp(aux, "s") == 0) {
 								sprintf_s(buffer_out, sizeof(buffer_out), "RCPT TO:<%s>%s", input, CRLF);//enviamos el destinatario
 								strcpy(to, input);
-								x = 1;
+								x = 2;
 						}
 
 							}
 						} while (x == 0);
 						
+						if(x==2){
 						printf(" ¿Desea hacer un RSET?\r\n");
 						fflush(stdin);
 						gets(input);
@@ -193,35 +194,39 @@ int main(int *argc, char *argv[])
 							estado = S_HELO;
 						
 						}
+						}
 						break;
 					case S_DATA:
 						sprintf_s(buffer_out, sizeof(buffer_out), "DATA%s", CRLF);//comando para pasar al mensaje
 						estado++;
 						break;
 					case S_MENSAJE:
-						printf("CLIENTE> Asunto: ");
-						gets(input);
-						strcpy(subject, input);
-						sprintf_s(buffer_out, sizeof(buffer_out), "Fecha: %s%ssubject: %s%sto:%s%sfrom: %s%s", salida_tiempo, CRLF, subject, CRLF, to, CRLF, from, CRLF);//enviamos las cabeceras
-
-						do {//vamos montando un mensaje en el buffer out hasta que sea distinto de un .
-							printf("Redacte su mensaje: (Si desea terminar teclee '.'):", to, CRLF);
+						
+							printf("CLIENTE> Asunto: ");
 							gets(input);
-							sprintf_s(buffer_out, sizeof(buffer_out), "%s%s%s", buffer_out, CRLF, input);
-							fflush(stdin);
-							fflush(stdout);
-						} while (strcmp(input, ".") != 0);
-						sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", buffer_out, CRLF);
+							strcpy(subject, input);
+							sprintf_s(buffer_out, sizeof(buffer_out), "Fecha: %s%ssubject: %s%sto:%s%sfrom: %s%s", salida_tiempo, CRLF, subject, CRLF, to, CRLF, from, CRLF);//enviamos las cabeceras
 
+							do {//vamos montando un mensaje en el buffer out hasta que sea distinto de un .
+								printf("Redacte su mensaje: (Si desea terminar teclee '.'):", to, CRLF);
+								gets(input);
+								sprintf_s(buffer_out, sizeof(buffer_out), "%s%s%s", buffer_out, CRLF, input);
+								fflush(stdin);
+								fflush(stdout);
+							} while (strcmp(input, ".") != 0);
+							sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", buffer_out, CRLF);
+
+					
 						break;
 
 
 
 
-					case S_QUIT:
+					case S_EXIT:
 						/*estado para Cerrar conexión, que respondera con un comando que comienza por 2, si no es así, se volverá
 						a ejecutar este comando hasta que el mensaje nos indique que todo está correcto.*/
-						
+						sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
+						estado = S_QUIT;
 						break;
 
 
@@ -297,7 +302,7 @@ int main(int *argc, char *argv[])
 						buffer_in[recibidos] = 0x00;
 						printf(buffer_in);
 
-						switch (estado) {
+						switch (estado) {//TRANSICIONES DE LOS DIFERENTES ESTADOS
 						case S_HELO:
 							if (estado != S_QUIT) {
 								estado++;
@@ -337,19 +342,20 @@ int main(int *argc, char *argv[])
 								if (strcmp(aux, "s") == 0) {
 									estado = S_MAIL_FROM;
 								}
+							
 								else {
 									
-									estado = S_QUIT; }
-								break;
-
-
+									estado = S_EXIT; }
+								
 							}
-						case S_QUIT:
-							sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
+
+							
 							break;
+						
 					
 							
 						}
+						
 
 					}
 				} while (estado != S_QUIT);
