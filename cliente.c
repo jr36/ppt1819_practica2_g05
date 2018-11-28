@@ -31,7 +31,7 @@ int main(int *argc, char *argv[])
 	struct sockaddr *server_in = NULL; //Crea la estructura del socket y la añade al servidor
 	struct sockaddr_in server_in4;
 	int address_size = sizeof(server_in4);
-	char buffer_in[1024], buffer_out[1024], input[1024], to[20], from[20], subject[20], salida_tiempo[128];// Es el tamaño maximo de 1024 del buffer de los datos recibidos, enviados y los que entran.
+	char buffer_in[1024], buffer_out[1024], input[1024], to[20], from[20], subject[20], salida_tiempo[128], aux[10];// Es el tamaño maximo de 1024 del buffer de los datos recibidos, enviados y los que entran.
 	int recibidos = 0, enviados = 0;
 	int estado = S_HELO;//Primer valor en la variable estado ya que será una maquina de estados
 	char option;
@@ -41,7 +41,7 @@ int main(int *argc, char *argv[])
 	char ipdest[16];
 	char default_ip4[16] = "127.0.0.1";
 	char ipdestl = ""; //ipdestino utilizada para dominio
-	
+	int x;
 	time_t tiempo = time(0);
 	struct tm *tlocal = localtime(&tiempo);
 	strftime(salida_tiempo, 128, "%d/%m/%y %H:%M", tlocal);
@@ -125,7 +125,8 @@ int main(int *argc, char *argv[])
 
 					case S_MAIL_FROM:
 
-						
+						do {
+							x = 0;
 							
 							printf("CLIENTE> MAIL FROM: (Pulse intro para salir) ");
 							gets_s(input, sizeof(input));
@@ -134,24 +135,29 @@ int main(int *argc, char *argv[])
 								//Escribe en el servidor QUIT y pasamos al estado QUIT
 								sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
 								estado = S_QUIT;
+								x = 1;
 								
 							}
 							else {
 
 							
-
-									
+								printf("Esta seguro de que desea añadir este emisor(s/n)?\r\n");
+								fflush(stdin);
+								gets(aux);
+								if (strcmp(aux, "s") == 0) {
+									x = 1;
 									sprintf_s(buffer_out, sizeof(buffer_out), "MAIL FROM:<%s>%s", input, CRLF);//MENSAJE DE REMITENTE
 									strcpy(from, input);//guardamos para el mensaje completo
-								
+								}
 
 
 							}
-						
+					} while (x == 0);
 
 						break;
 					case S_RCPT_TO:
-						
+						do{
+							x = 0;
 							
 							printf("CLIENTE> Usuario Receptor: (Pulse intro para salir) ");
 							gets_s(input, sizeof(input));
@@ -160,18 +166,24 @@ int main(int *argc, char *argv[])
 								//Escribe en el servidor QUIT y pasamos al estado QUIT
 								sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
 								estado = S_QUIT;
+								x = 1;
 								
 							}
 							else {
 
-								
+								printf("Esta seguro de que desea añadir este emisor(s/n)?\r\n");
 
+								fflush(stdin);
+								gets(aux);
 									
-									sprintf_s(buffer_out, sizeof(buffer_out), "RCPT TO:<%s>%s", input, CRLF);//enviamos el destinatario
-									strcpy(to, input);
-							
+							if (strcmp(aux, "s") == 0) {
+								sprintf_s(buffer_out, sizeof(buffer_out), "RCPT TO:<%s>%s", input, CRLF);//enviamos el destinatario
+								strcpy(to, input);
+								x = 1;
+						}
 
 							}
+						} while (x == 0);
 						
 						printf(" ¿Desea hacer un RSET?\r\n");
 						fflush(stdin);
@@ -179,6 +191,7 @@ int main(int *argc, char *argv[])
 						if (strcmp(input,"s") == 0) {
 							sprintf_s(buffer_out, sizeof(buffer_out), "RSET%s", CRLF);
 							estado = S_HELO;
+						
 						}
 						break;
 					case S_DATA:
@@ -208,6 +221,7 @@ int main(int *argc, char *argv[])
 					case S_QUIT:
 						/*estado para Cerrar conexión, que respondera con un comando que comienza por 2, si no es así, se volverá
 						a ejecutar este comando hasta que el mensaje nos indique que todo está correcto.*/
+						
 						break;
 
 
@@ -298,8 +312,17 @@ int main(int *argc, char *argv[])
 							break;
 						case S_RCPT_TO:
 							if (estado != S_QUIT) {
-								estado++;
+								printf("¿Desea introducir mas usuarios?(si/no)\r\n");
+								fflush(stdin);
+								gets(aux);
+
+								if (strcmp(aux, "s") == 0) {
+
+									estado = S_RCPT_TO;
+								}
+								else estado++;
 							}
+
 							else estado = S_QUIT;
 							break;
 
@@ -310,17 +333,20 @@ int main(int *argc, char *argv[])
 							if (buffer_in[0] == '2') {
 								printf("¿Quiere mandar otro mensaje antes de finalizar sesion?(si/no)\r\n");
 								fflush(stdin);
-								gets(input);
-								if (strcmp(input, "s") == 0) {
+								gets(aux);
+								if (strcmp(aux, "s") == 0) {
 									estado = S_MAIL_FROM;
 								}
 								else {
-									sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
-									estado = estado++; }
+									
+									estado = S_QUIT; }
 								break;
 
 
 							}
+						case S_QUIT:
+							sprintf_s(buffer_out, sizeof(buffer_out), "%s%s", "QUIT", CRLF);
+							break;
 					
 							
 						}
